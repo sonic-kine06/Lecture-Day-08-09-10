@@ -112,5 +112,33 @@ def run_expectations(cleaned_rows: List[Dict[str, Any]]) -> Tuple[List[Expectati
         )
     )
 
+    # E7: no unclear content marker
+    bad_unclear = [
+        r for r in cleaned_rows if "Nội dung không rõ ràng:" in (r.get("chunk_text") or "")
+    ]
+    ok7 = len(bad_unclear) == 0
+    results.append(
+        ExpectationResult(
+            "no_unclear_content",
+            ok7,
+            "halt",
+            f"violations={len(bad_unclear)}",
+        )
+    )
+
+    # E8: no exclamation marks marker
+    bad_exclamation = [
+        r for r in cleaned_rows if "!!!" in (r.get("chunk_text") or "")
+    ]
+    ok8 = len(bad_exclamation) == 0
+    results.append(
+        ExpectationResult(
+            "no_exclamation_marks",
+            ok8,
+            "halt",
+            f"violations={len(bad_exclamation)}",
+        )
+    )
+
     halt = any(not r.passed and r.severity == "halt" for r in results)
     return results, halt

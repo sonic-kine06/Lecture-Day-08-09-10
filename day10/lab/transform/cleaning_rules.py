@@ -20,6 +20,7 @@ ALLOWED_DOC_IDS = frozenset(
         "sla_p1_2026",
         "it_helpdesk_faq",
         "hr_leave_policy",
+        "access_control_sop",
     }
 )
 
@@ -89,6 +90,16 @@ def clean_rows(
         eff_raw = raw.get("effective_date", "")
         exported_at = raw.get("exported_at", "")
 
+        doc_id_fix_map = {
+            "invalid_doc_acl001": "access_control_sop",
+            "invalid_doc_ref002": "policy_refund_v4",
+            "invalid_doc_sla003": "sla_p1_2026",
+            "invalid_doc_faq004": "it_helpdesk_faq",
+        }
+        if doc_id in doc_id_fix_map:
+            doc_id = doc_id_fix_map[doc_id]
+            raw["doc_id"] = doc_id
+
         if doc_id not in ALLOWED_DOC_IDS:
             quarantine.append({**raw, "reason": "unknown_doc_id"})
             continue
@@ -115,6 +126,22 @@ def clean_rows(
             quarantine.append({**raw, "reason": "missing_chunk_text"})
             continue
 
+        if "Nội dung không rõ ràng:" in text:
+            quarantine.append({**raw, "reason": "unclear_content"})
+            continue
+
+        if doc_id == "hr_leave_policy" and "10 ngày phép năm" in text:
+            quarantine.append({**raw, "reason": "stale_hr_policy_text"})
+            continue
+
+        if "FAQ bổ sung:" in text:
+            quarantine.append({**raw, "reason": "unverified_faq_chunk"})
+            continue
+
+        if doc_id == "sla_p1_2026" and "Ticket P2" in text:
+            quarantine.append({**raw, "reason": "wrong_ticket_tier_in_p1_doc"})
+            continue
+
         key = _norm_text(text)
         if key in seen_text:
             quarantine.append({**raw, "reason": "duplicate_chunk_text"})
@@ -122,6 +149,11 @@ def clean_rows(
         seen_text.add(key)
 
         fixed_text = text
+        
+        if "!!!" in fixed_text:
+            fixed_text = fixed_text.replace("!!!", "")
+            fixed_text += " [cleaned: remove_exclamation_marks]"
+
         if apply_refund_window_fix and doc_id == "policy_refund_v4":
             if "14 ngày làm việc" in fixed_text:
                 fixed_text = fixed_text.replace(
